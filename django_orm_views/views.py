@@ -1,7 +1,7 @@
 import re
 from typing import List, Optional
 from django.db.models import QuerySet
-from django.db import connection
+from django.db.backends.utils import truncate_name
 
 try:
     # Django 3.1 and above
@@ -39,7 +39,7 @@ class PostgresMaterialisedViewMixin:
             columns = ", ".join(cls.pk_fields)
             index_name = f"{cls.name}_{'_'.join(cls.pk_fields)}"
             # Truncate index name to database limit (PostgreSQL: 63 chars)
-            index_name = connection.ops.truncate_name(index_name)
+            index_name = truncate_name(index_name)
             sql += f"CREATE UNIQUE INDEX {index_name} ON {cls.name_with_schema} ({columns});"
 
         return ParameterisedSQL(
@@ -75,8 +75,9 @@ class BasePostgresView:
         super().__init_subclass__(**kwargs)
 
         if len(set([view.database for view in cls.view_dependencies])) > 1:
-            raise InvalidViewDepencies("View dependencies connect to more than one database")
-
+            raise InvalidViewDepencies(
+                "View dependencies connect to more than one database"
+            )
 
     @classproperty
     def _parameterised_sql(cls) -> ParameterisedSQL:
@@ -109,7 +110,7 @@ class BasePostgresView:
         parameterised_sql = cls._parameterised_sql
         return ParameterisedSQL(
             sql=f'CREATE VIEW {cls.name_with_schema} AS {parameterised_sql.sql};',
-            params=parameterised_sql.params
+            params=parameterised_sql.params,
         )
 
     @classproperty
@@ -145,17 +146,19 @@ class BasePostgresView:
           SELECT
            column_name,
            data_type
-        FROM    
+        FROM
            information_schema.columns
         WHERE
            table_schema = '{SUB_SCHEMA_NAME}'
            AND table_name = '{cls.name}'
-        
+
         """
         return ParameterisedSQL(sql=qry, params=[])
 
 
-class PostgresViewFromQueryset(AutoRegisterMixin, BasePostgresView, should_register=False):
+class PostgresViewFromQueryset(
+    AutoRegisterMixin, BasePostgresView, should_register=False
+):
     """Used as the interface to the package for defining views based on a Django Queryset."""
 
     @classmethod
@@ -183,12 +186,17 @@ class PostgresViewFromSQL(AutoRegisterMixin, BasePostgresView, should_register=F
 
 
 class ReadableViewFromQueryset(
-    PostgresViewFromQueryset, NotManagedModel, is_abstract_model=True, should_register=False
+    PostgresViewFromQueryset,
+    NotManagedModel,
+    is_abstract_model=True,
+    should_register=False,
 ):
     class Meta:
         abstract = True
 
 
-class ReadableViewFromSQL(PostgresViewFromSQL, NotManagedModel, is_abstract_model=True, should_register=False):
+class ReadableViewFromSQL(
+    PostgresViewFromSQL, NotManagedModel, is_abstract_model=True, should_register=False
+):
     class Meta:
         abstract = True
