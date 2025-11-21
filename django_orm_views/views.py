@@ -1,6 +1,7 @@
 import re
-from typing import Optional
+from typing import List, Optional
 from django.db.models import QuerySet
+from django.db import connection
 
 try:
     # Django 3.1 and above
@@ -22,20 +23,24 @@ class PostgresMaterialisedViewMixin:
     """Mixin to make a subclass of AutoRegisterMixin and BasePostgresView materialized.
 
     Attributes:
-        pk_field (str): is an optional string with the column name from the view.
-            This column will get a unique index. Having a unique index will allow this
+        pk_fields (List[str]): is an optional list of column names from the view.
+            These columns will get a unique index. Having a unique index will allow this
             view to refresh concurrently.
     """
 
-    pk_field: Optional[str] = None
+    pk_fields: Optional[List[str]] = None
 
     @classproperty
     def creation_sql(cls) -> ParameterisedSQL:
         parameterised_sql = cls._parameterised_sql
         sql = f"CREATE MATERIALIZED VIEW {cls.name_with_schema} AS {parameterised_sql.sql};"
 
-        if cls.pk_field:
-            sql += f"CREATE UNIQUE INDEX {cls.name}_{cls.pk_field} ON {cls.name_with_schema} ({cls.pk_field});"
+        if cls.pk_fields:
+            columns = ", ".join(cls.pk_fields)
+            index_name = f"{cls.name}_{'_'.join(cls.pk_fields)}"
+            # Truncate index name to database limit (PostgreSQL: 63 chars)
+            index_name = connection.ops.truncate_name(index_name)
+            sql += f"CREATE UNIQUE INDEX {index_name} ON {cls.name_with_schema} ({columns});"
 
         return ParameterisedSQL(
             sql=sql,
@@ -50,12 +55,12 @@ class PostgresMaterialisedViewMixin:
             concurrently (bool): if True the statement will be for a concurrent refresh
 
         Raises:
-            ValueError: If concurrently is True and there's no pk_field
+            ValueError: If concurrently is True and there's no pk_fields
         """
         statement_parts = ["REFRESH MATERIALIZED VIEW"]
         if concurrently:
-            if not cls.pk_field:
-                raise ValueError("Can't refresh concurrently without a pk_field")
+            if not cls.pk_fields:
+                raise ValueError("Can't refresh concurrently without pk_fields")
             statement_parts.append("CONCURRENTLY")
         statement_parts.append(f"{cls.name_with_schema};")
         return " ".join(statement_parts)

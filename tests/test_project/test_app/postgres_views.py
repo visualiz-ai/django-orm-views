@@ -104,7 +104,7 @@ class DependentView(PostgresViewFromSQL):
 class SimpleMaterializedView(PostgresMaterialisedViewMixin, PostgresViewFromQueryset):
 
     prefix = 'test'
-    pk_field = 'id'
+    pk_fields = ['id']
 
     @classmethod
     def get_queryset(cls):
