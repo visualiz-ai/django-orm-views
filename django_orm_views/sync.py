@@ -120,8 +120,8 @@ def sync_specific_views(
     # Get the view objects for the requested names
     views_to_sync = [view_name_map[name] for name in view_names]
 
-    # Topologically sort the selected views
-    views_to_generate = topological_sort_views(views_to_sync)
+    # Use the views as-is; assume dependencies already exist
+    views_to_generate = views_to_sync
 
     logger.info(
         'Syncing %d specific views for database %s',
