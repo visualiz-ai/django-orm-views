@@ -1,6 +1,6 @@
-import itertools
+from graphlib import TopologicalSorter, CycleError
 
-from typing import Optional, List, Set
+from typing import Optional, List
 
 from django.db import connections, transaction
 
@@ -17,31 +17,17 @@ def topological_sort_views(list_of_views):
     Returns an ordered list of views
     Raises CyclicDependencyError if there is a cyclic dependency between the views.
     """
+    sorter = TopologicalSorter()
 
-    def _sets_of_views_deps_iterator(views):
-        """Builds an iterator based on the number of dependencies, popping off
-        any which no longer have any dependencies.
-        """
+    # Add all views and their dependencies to the sorter
+    for view in list_of_views:
+        sorter.add(view, *view.view_dependencies)
 
-        view_to_deps = {view: set(view.view_dependencies) for view in views}
-
-        while True:
-            ordered = set(item for item, dep in view_to_deps.items() if not dep)
-            if not ordered:
-                break
-            yield ordered
-
-            view_to_deps = {
-                item: (dep - ordered)
-                for item, dep in view_to_deps.items()
-                if item not in ordered
-            }
-
-        if view_to_deps:
-            raise CyclicDependencyError(f'A Cyclic dependency exists amongst {view_to_deps}')
-
-    # Flatten the list of sets
-    return list(itertools.chain.from_iterable(_sets_of_views_deps_iterator(list_of_views)))
+    try:
+        # Get the topologically sorted order
+        return list(sorter.static_order())
+    except CycleError as e:
+        raise CyclicDependencyError(f'A Cyclic dependency exists: {e}') from e
 
 
 def sync_views(
