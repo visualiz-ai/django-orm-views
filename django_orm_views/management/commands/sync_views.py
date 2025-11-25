@@ -1,7 +1,7 @@
 from django.core.management import BaseCommand
 
 from ...constants import LOG
-from ...sync import sync_views, sync_specific_views, refresh_materialized_views
+from ...sync import sync_views, sync_specific_views
 
 
 class Command(BaseCommand):
@@ -26,28 +26,11 @@ class Command(BaseCommand):
             default=False,
             help='Drop and recreate entire views schema (only applies when syncing specific views)',
         )
-        parser.add_argument(
-            '--refresh',
-            action='store_true',
-            dest='refresh_views',
-            default=False,
-            help='Refresh materialized views after syncing',
-        )
-        parser.add_argument(
-            '--no-concurrent',
-            action='store_true',
-            dest='no_concurrent',
-            default=False,
-            help='Disable concurrent refresh of materialized views (default: concurrent is enabled)',
-        )
 
     def handle(self, *_, **options):
         view_names = options.get('view_names')
         grant_select_to_user = options.get('grant_select_to_user')
         recreate_schema = options.get('recreate_schema')
-        refresh_views = options.get('refresh_views')
-        no_concurrent = options.get('no_concurrent')
-        concurrent = not no_concurrent
 
         logger = LOG.getChild('sync_views')
 
@@ -70,16 +53,6 @@ class Command(BaseCommand):
 
             logger.info(msg)
             self.stdout.write(self.style.SUCCESS(msg))
-
-            # Refresh materialized views if requested
-            if refresh_views:
-                refresh_materialized_views(
-                    view_names=view_names if view_names else None,
-                    concurrent=concurrent,
-                )
-                refresh_msg = f'Successfully refreshed materialized view(s) (concurrent={concurrent})'
-                logger.info(refresh_msg)
-                self.stdout.write(self.style.SUCCESS(refresh_msg))
 
         except ValueError as e:
             error_msg = f'Error: {str(e)}'

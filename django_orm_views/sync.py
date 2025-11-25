@@ -170,7 +170,7 @@ def refresh_materialized_views(
         database: str = DEFAULT_DATABASE_LABEL,
         concurrent: bool = True,
 ):
-    """Refresh materialized views.
+    """Refresh materialized views following topological sort order based on dependencies.
 
     Args:
         view_names: List of specific view names to refresh. If None, refresh all materialized views.
@@ -208,14 +208,17 @@ def refresh_materialized_views(
 
         views_to_refresh = [view_name_map[name] for name in view_names]
 
+    # Sort views topologically by dependencies
+    views_to_refresh_sorted = topological_sort_views(views_to_refresh)
+
     logger.info(
         'Refreshing %d materialized views for database %s (concurrent=%s)',
-        len(views_to_refresh),
+        len(views_to_refresh_sorted),
         database,
         concurrent
     )
 
-    for view in views_to_refresh:
+    for view in views_to_refresh_sorted:
         try:
             logger.info("refreshing materialized view %s (concurrent=%s)", view.name, concurrent)
             refresh_materialized_view(view, concurrently=concurrent)
@@ -229,4 +232,4 @@ def refresh_materialized_views(
             else:
                 raise
 
-    logger.info('Successfully refreshed %d materialized views', len(views_to_refresh))
+    logger.info('Successfully refreshed %d materialized views', len(views_to_refresh_sorted))
