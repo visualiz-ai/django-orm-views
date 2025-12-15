@@ -25,18 +25,17 @@ class Command(BaseCommand):
             help='Grant SELECT permissions on synced views to the specified user',
         )
         parser.add_argument(
-            '--no-recreate',
+            '--recreate',
             action='store_true',
-            dest='no_recreate',
+            dest='recreate',
             default=False,
-            help='Only drop specific views instead of recreating entire schema',
+            help='Drop and recreate entire views schema instead of just the specific views',
         )
 
     def handle(self, *_, **options):
         positional_args = options.get('positional_args', [])
         grant_select_to_user = options.get('grant_select_to_user')
-        no_recreate = options.get('no_recreate', False)
-        recreate_schema = not no_recreate
+        recreate_schema = options.get('recreate', False)
 
         logger = LOG.getChild('sync_views')
 

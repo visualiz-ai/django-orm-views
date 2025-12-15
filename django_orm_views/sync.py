@@ -115,7 +115,7 @@ def sync_views(
         view_names: Optional[List[str]] = None,
         database: str = DEFAULT_DATABASE_LABEL,
         grant_select_permissions_to_user: Optional[str] = None,
-        recreate_schema: bool = True,
+        recreate_schema: bool = False,
 ):
     """Sync views with optional filtering by app and/or specific view names.
 
