@@ -1,7 +1,7 @@
 from django.core.management import BaseCommand
 
 from ...constants import LOG
-from ...sync import sync_views, sync_specific_views
+from ...sync import sync_views
 
 
 class Command(BaseCommand):
@@ -9,9 +9,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'view_names',
+            'positional_args',
             nargs='*',
-            help='Specific view names to sync. If not provided, syncs all views.',
+            help=(
+                'Optional positional arguments. '
+                'If none provided, syncs all views. '
+                'If 1 provided (app name), syncs all views in that app. '
+                'If 2+ provided (app name + view names), syncs specific views in that app.'
+            ),
         )
         parser.add_argument(
             '--grant-select-permissions-to-user',
@@ -20,36 +25,50 @@ class Command(BaseCommand):
             help='Grant SELECT permissions on synced views to the specified user',
         )
         parser.add_argument(
-            '--recreate',
+            '--no-recreate',
             action='store_true',
-            dest='recreate_schema',
+            dest='no_recreate',
             default=False,
-            help='Drop and recreate entire views schema (only applies when syncing specific views)',
+            help='Only drop specific views instead of recreating entire schema',
         )
 
     def handle(self, *_, **options):
-        view_names = options.get('view_names')
+        positional_args = options.get('positional_args', [])
         grant_select_to_user = options.get('grant_select_to_user')
-        recreate_schema = options.get('recreate_schema')
+        no_recreate = options.get('no_recreate', False)
+        recreate_schema = not no_recreate
 
         logger = LOG.getChild('sync_views')
 
         try:
-            # Sync views
-            if view_names:
-                # Sync specific views
-                sync_specific_views(
-                    view_names=view_names,
-                    grant_select_permissions_to_user=grant_select_to_user,
-                    recreate_schema=recreate_schema,
-                )
-                msg = f'Successfully sync\'d {len(view_names)} view(s): {", ".join(view_names)}'
+            # Parse positional arguments
+            app_name = None
+            view_names = None
+
+            if len(positional_args) == 1:
+                # Single argument: app name
+                app_name = positional_args[0]
+                msg = f'Syncing all views in app: {app_name}'
+            elif len(positional_args) > 1:
+                # Multiple arguments: app name + view names
+                app_name = positional_args[0]
+                view_names = positional_args[1:]
+                msg = f'Syncing views {view_names} in app {app_name}'
             else:
-                # Sync all views
-                sync_views(
-                    grant_select_permissions_to_user=grant_select_to_user
-                )
-                msg = 'Successfully sync\'d all views using django_orm_views'
+                # No arguments: sync all views
+                msg = 'Syncing all views'
+
+            logger.info(msg)
+            self.stdout.write(msg)
+
+            # Sync views
+            sync_views(
+                app_name=app_name,
+                view_names=view_names,
+                grant_select_permissions_to_user=grant_select_to_user,
+                recreate_schema=recreate_schema,
+            )
+            msg = f'Successfully sync\'d views using django_orm_views'
 
             logger.info(msg)
             self.stdout.write(self.style.SUCCESS(msg))
