@@ -22,8 +22,7 @@ def get_app_name_from_view(view_class) -> str:
 
 
 def get_views_by_app(
-        database: str = DEFAULT_DATABASE_LABEL,
-        app_name: Optional[str] = None
+    database: str = DEFAULT_DATABASE_LABEL, app_name: Optional[str] = None
 ) -> List:
     """Get views from the registry, optionally filtered by app name.
 
@@ -40,17 +39,16 @@ def get_views_by_app(
         return list(views_in_db)
 
     filtered_views = [
-        view for view in views_in_db
-        if get_app_name_from_view(view) == app_name
+        view for view in views_in_db if get_app_name_from_view(view) == app_name
     ]
 
     return filtered_views
 
 
 def get_specific_views_by_app(
-        view_names: List[str],
-        database: str = DEFAULT_DATABASE_LABEL,
-        app_name: Optional[str] = None
+    view_names: List[str],
+    database: str = DEFAULT_DATABASE_LABEL,
+    app_name: Optional[str] = None,
 ) -> List:
     """Get specific views by name, optionally filtered by app.
 
@@ -73,7 +71,8 @@ def get_specific_views_by_app(
     # If app_name is specified, filter the mapping
     if app_name is not None:
         view_name_map = {
-            name: view for name, view in view_name_map.items()
+            name: view
+            for name, view in view_name_map.items()
             if get_app_name_from_view(view) == app_name
         }
 
@@ -101,7 +100,10 @@ def topological_sort_views(list_of_views):
 
     # Add all views and their dependencies to the sorter
     for view in list_of_views:
-        sorter.add(view, *view.view_dependencies)
+        sorter.add(
+            view,
+            *[dep for dep in view.view_dependencies if dep in list_of_views],
+        )
 
     try:
         # Get the topologically sorted order
@@ -111,11 +113,11 @@ def topological_sort_views(list_of_views):
 
 
 def sync_views(
-        app_name: Optional[str] = None,
-        view_names: Optional[List[str]] = None,
-        database: str = DEFAULT_DATABASE_LABEL,
-        grant_select_permissions_to_user: Optional[str] = None,
-        recreate_schema: bool = False,
+    app_name: Optional[str] = None,
+    view_names: Optional[List[str]] = None,
+    database: str = DEFAULT_DATABASE_LABEL,
+    grant_select_permissions_to_user: Optional[str] = None,
+    recreate_schema: bool = False,
 ):
     """Sync views with optional filtering by app and/or specific view names.
 
@@ -142,7 +144,7 @@ def sync_views(
         'Syncing views for database %s (app=%s, view_names=%s)',
         database,
         app_name,
-        view_names
+        view_names,
     )
 
     register_all_views()
@@ -151,16 +153,11 @@ def sync_views(
     if view_names:
         # Sync specific views (optionally filtered by app)
         views_to_generate = get_specific_views_by_app(
-            view_names=view_names,
-            database=database,
-            app_name=app_name
+            view_names=view_names, database=database, app_name=app_name
         )
     else:
         # Sync all views (optionally filtered by app)
-        views_to_generate = get_views_by_app(
-            database=database,
-            app_name=app_name
-        )
+        views_to_generate = get_views_by_app(database=database, app_name=app_name)
 
     # Always topologically sort the views by dependencies
     views_to_generate = topological_sort_views(views_to_generate)
@@ -170,16 +167,22 @@ def sync_views(
             if recreate_schema:
                 # Drop the entire schema and recreate it
                 logger.info('Dropping and recreating entire schema %s', SUB_SCHEMA_NAME)
-                cursor.execute(f'DROP SCHEMA IF EXISTS {SUB_SCHEMA_NAME} CASCADE; CREATE SCHEMA {SUB_SCHEMA_NAME};')
+                cursor.execute(
+                    f'DROP SCHEMA IF EXISTS {SUB_SCHEMA_NAME} CASCADE; CREATE SCHEMA {SUB_SCHEMA_NAME};'
+                )
             else:
                 # Drop only the selected views
                 logger.info('Dropping %d specific views', len(views_to_generate))
                 for view in views_to_generate:
                     # Check if it's a materialized view
                     if hasattr(view, 'get_refresh_sql'):
-                        cursor.execute(f'DROP MATERIALIZED VIEW IF EXISTS {view.name_with_schema} CASCADE;')
+                        cursor.execute(
+                            f'DROP MATERIALIZED VIEW IF EXISTS {view.name_with_schema} CASCADE;'
+                        )
                     else:
-                        cursor.execute(f'DROP VIEW IF EXISTS {view.name_with_schema} CASCADE;')
+                        cursor.execute(
+                            f'DROP VIEW IF EXISTS {view.name_with_schema} CASCADE;'
+                        )
 
             # Execute each SQL statement from the views
             for view in views_to_generate:
@@ -198,7 +201,11 @@ def sync_views(
                         f'GRANT SELECT ON {SUB_SCHEMA_NAME}.{view.name} TO {grant_select_permissions_to_user};'
                     )
 
-    logger.info('Successfully sync\'d %d views for %s database', len(views_to_generate), database)
+    logger.info(
+        'Successfully sync\'d %d views for %s database',
+        len(views_to_generate),
+        database,
+    )
 
 
 def refresh_materialized_view(
@@ -209,13 +216,11 @@ def refresh_materialized_view(
         cursor.execute(view.get_refresh_sql(concurrently))
 
 
-
-
 def refresh_materialized_views(
-        app_name: Optional[str] = None,
-        view_names: Optional[List[str]] = None,
-        database: str = DEFAULT_DATABASE_LABEL,
-        concurrent: bool = True,
+    app_name: Optional[str] = None,
+    view_names: Optional[List[str]] = None,
+    database: str = DEFAULT_DATABASE_LABEL,
+    concurrent: bool = True,
 ):
     """Refresh materialized views with optional filtering by app and/or specific view names.
 
@@ -243,7 +248,7 @@ def refresh_materialized_views(
         database,
         app_name,
         view_names,
-        concurrent
+        concurrent,
     )
 
     register_all_views()
@@ -251,10 +256,7 @@ def refresh_materialized_views(
     views_in_db = registry.get(database, set())
 
     # Filter to only materialized views (views that have get_refresh_sql method)
-    materialized_views = [
-        v for v in views_in_db
-        if hasattr(v, 'get_refresh_sql')
-    ]
+    materialized_views = [v for v in views_in_db if hasattr(v, 'get_refresh_sql')]
 
     # Determine which views to refresh based on arguments
     if view_names:
@@ -265,7 +267,8 @@ def refresh_materialized_views(
         # If app_name is specified, filter the mapping
         if app_name is not None:
             view_name_map = {
-                name: view for name, view in view_name_map.items()
+                name: view
+                for name, view in view_name_map.items()
                 if get_app_name_from_view(view) == app_name
             }
 
@@ -281,8 +284,7 @@ def refresh_materialized_views(
         # Refresh all views (optionally filtered by app)
         if app_name is not None:
             views_to_refresh = [
-                v for v in materialized_views
-                if get_app_name_from_view(v) == app_name
+                v for v in materialized_views if get_app_name_from_view(v) == app_name
             ]
         else:
             views_to_refresh = materialized_views
@@ -294,21 +296,25 @@ def refresh_materialized_views(
         'Refreshing %d materialized views for database %s (concurrent=%s)',
         len(views_to_refresh_sorted),
         database,
-        concurrent
+        concurrent,
     )
 
     for view in views_to_refresh_sorted:
         try:
-            logger.info("refreshing materialized view %s (concurrent=%s)", view.name, concurrent)
+            logger.info(
+                "refreshing materialized view %s (concurrent=%s)", view.name, concurrent
+            )
             refresh_materialized_view(view, concurrently=concurrent)
         except ValueError as e:
             if concurrent and "pk_fields" in str(e):
                 logger.warning(
                     "Cannot refresh view %s concurrently without pk_fields, falling back to non-concurrent refresh",
-                    view.name
+                    view.name,
                 )
                 refresh_materialized_view(view, concurrently=False)
             else:
                 raise
 
-    logger.info('Successfully refreshed %d materialized views', len(views_to_refresh_sorted))
+    logger.info(
+        'Successfully refreshed %d materialized views', len(views_to_refresh_sorted)
+    )
