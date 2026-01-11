@@ -38,7 +38,11 @@ def register_all_views():
     """
     Forces import of all views which will then register themselves using AutoRegisterMixin.
     """
-    LOG.getChild(__name__).info('Importing all Postgres views from .%s files/packages in apps', VIEWS_FILE_NAME)
+    # XXX(th/2026-01-11): Hush. We don't need this log message every time we
+    # start our app.
+    #
+    # LOG.getChild(__name__).info('Importing all Postgres views from .%s files/packages in apps', VIEWS_FILE_NAME)
+
     # Iterate over all app configs to build out our list of postgres views
     for app_label, app_config in apps.app_configs.items():
 
