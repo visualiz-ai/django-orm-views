@@ -1,5 +1,6 @@
 import re
 from typing import List, Optional
+import itertools
 from django.db.models import QuerySet
 from django.db.backends.utils import truncate_name
 
@@ -36,11 +37,12 @@ class PostgresMaterialisedViewMixin:
         sql = f"CREATE MATERIALIZED VIEW {cls.name_with_schema} AS {parameterised_sql.sql};"
 
         if cls.pk_fields:
-            columns = ", ".join(cls.pk_fields)
-            index_name = f"{cls.name}_{'_'.join(cls.pk_fields)}"
-            # Truncate index name to database limit (PostgreSQL: 63 chars)
-            index_name = truncate_name(index_name)
-            sql += f"CREATE UNIQUE INDEX {index_name} ON {cls.name_with_schema} ({columns});"
+            for pk_fields in itertools.permutations(cls.pk_fields):
+                columns = ", ".join(pk_fields)
+                index_name = f"{cls.name}_{'_'.join(pk_fields)}"
+                # Truncate index name to database limit (PostgreSQL: 63 chars)
+                index_name = truncate_name(index_name)
+                sql += f"CREATE UNIQUE INDEX {index_name} ON {cls.name_with_schema} ({columns});"
 
         return ParameterisedSQL(
             sql=sql,
