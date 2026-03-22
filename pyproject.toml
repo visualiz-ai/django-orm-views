@@ -17,3 +17,6 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/iwoca/django-orm-views"
 "Bug Tracker" = "https://github.com/iwoca/django-orm-views/issues"
+
+[tool.setuptools.package-data]
+django_orm_views = ["py.typed"]
